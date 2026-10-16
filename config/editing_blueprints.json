@@ -1,0 +1,100 @@
+{
+  "blueprints": {
+    "Retention": {
+      "name": "Retention",
+      "description": "Ultra-fast paced YouTube retention style optimized for watch time. Hyper-active cuts, immediate removal of pauses, punch-ins on repetitive phrasing, and prominent SFX accents.",
+      "aspect_ratio": "16:9",
+      "width": 1920,
+      "height": 1080,
+      "fps": 30.0,
+      "rules": {
+        "max_silence_duration_sec": 0.25,
+        "silence_breath_padding_sec": 0.06,
+        "punch_in_scale_factor": 1.08,
+        "punch_in_min_interval_sec": 3.0,
+        "b_roll_min_interval_sec": 2.5,
+        "b_roll_max_duration_sec": 4.0,
+        "j_l_cut_offset_sec": 0.25,
+        "music_ducking_attenuation_db": -22.0,
+        "music_regular_gain_db": -10.0,
+        "audio_loudness_target_lufs": -14.0,
+        "enable_jump_cut_punch_in": true,
+        "enable_motion_overlays": true,
+        "enable_sound_fx": true,
+        "default_transition": "cut"
+      }
+    },
+    "Cinematic": {
+      "name": "Cinematic",
+      "description": "Artistic narrative and documentary pacing with smooth visual flow, deliberate breath timing, emotional J/L cuts, and rich atmospheric sound beds.",
+      "aspect_ratio": "16:9",
+      "width": 3840,
+      "height": 2160,
+      "fps": 24.0,
+      "rules": {
+        "max_silence_duration_sec": 0.60,
+        "silence_breath_padding_sec": 0.15,
+        "punch_in_scale_factor": 1.04,
+        "punch_in_min_interval_sec": 8.0,
+        "b_roll_min_interval_sec": 5.0,
+        "b_roll_max_duration_sec": 7.5,
+        "j_l_cut_offset_sec": 0.50,
+        "music_ducking_attenuation_db": -18.0,
+        "music_regular_gain_db": -12.0,
+        "audio_loudness_target_lufs": -16.0,
+        "enable_jump_cut_punch_in": false,
+        "enable_motion_overlays": false,
+        "enable_sound_fx": true,
+        "default_transition": "cross_dissolve"
+      }
+    },
+    "Documentary": {
+      "name": "Documentary",
+      "description": "Vox and Netflix investigative documentary style with balanced journalistic pacing, archival B-roll cutaways, lower thirds, and clear dialogue presence.",
+      "aspect_ratio": "16:9",
+      "width": 1920,
+      "height": 1080,
+      "fps": 29.97,
+      "rules": {
+        "max_silence_duration_sec": 0.40,
+        "silence_breath_padding_sec": 0.10,
+        "punch_in_scale_factor": 1.06,
+        "punch_in_min_interval_sec": 5.0,
+        "b_roll_min_interval_sec": 3.5,
+        "b_roll_max_duration_sec": 6.0,
+        "j_l_cut_offset_sec": 0.35,
+        "music_ducking_attenuation_db": -20.0,
+        "music_regular_gain_db": -11.0,
+        "audio_loudness_target_lufs": -14.0,
+        "enable_jump_cut_punch_in": true,
+        "enable_motion_overlays": true,
+        "enable_sound_fx": true,
+        "default_transition": "cut"
+      }
+    },
+    "Shortform": {
+      "name": "Shortform",
+      "description": "Vertical 9:16 format designed for TikTok, Instagram Reels, and YouTube Shorts. Hyper-dense editing, immediate hook, bold dynamic typography, and zero dead air.",
+      "aspect_ratio": "9:16",
+      "width": 1080,
+      "height": 1920,
+      "fps": 30.0,
+      "rules": {
+        "max_silence_duration_sec": 0.20,
+        "silence_breath_padding_sec": 0.04,
+        "punch_in_scale_factor": 1.15,
+        "punch_in_min_interval_sec": 2.0,
+        "b_roll_min_interval_sec": 1.8,
+        "b_roll_max_duration_sec": 3.0,
+        "j_l_cut_offset_sec": 0.20,
+        "music_ducking_attenuation_db": -24.0,
+        "music_regular_gain_db": -9.0,
+        "audio_loudness_target_lufs": -13.0,
+        "enable_jump_cut_punch_in": true,
+        "enable_motion_overlays": true,
+        "enable_sound_fx": true,
+        "default_transition": "cut"
+      }
+    }
+  }
+}

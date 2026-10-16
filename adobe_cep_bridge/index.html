@@ -1,0 +1,83 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Argon Adobe CEP Bridge</title>
+    <style>
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+            background: #1e1e1e;
+            color: #e0e0e0;
+            margin: 0;
+            padding: 16px;
+            font-size: 13px;
+        }
+        h2 {
+            margin-top: 0;
+            color: #00d2ff;
+            font-size: 16px;
+            border-bottom: 1px solid #333;
+            padding-bottom: 8px;
+        }
+        .status-box {
+            background: #282828;
+            border-radius: 4px;
+            padding: 12px;
+            margin-bottom: 12px;
+            border: 1px solid #3e3e3e;
+        }
+        .status-row {
+            display: flex;
+            justify-content: space-between;
+            margin-bottom: 6px;
+        }
+        .status-indicator {
+            display: inline-block;
+            width: 10px;
+            height: 10px;
+            border-radius: 50%;
+            background-color: #28a745;
+            margin-right: 6px;
+        }
+        .log-box {
+            background: #111;
+            border: 1px solid #333;
+            color: #00ff66;
+            font-family: Consolas, monospace;
+            font-size: 11px;
+            height: 140px;
+            overflow-y: auto;
+            padding: 8px;
+            border-radius: 4px;
+            white-space: pre-wrap;
+        }
+    </style>
+</head>
+<body>
+    <h2>Project Argon Bridge</h2>
+    <div class="status-box">
+        <div class="status-row">
+            <span><strong>Status:</strong></span>
+            <span><span class="status-indicator" id="statusDot"></span><span id="statusText">Starting...</span></span>
+        </div>
+        <div class="status-row">
+            <span><strong>Host App:</strong></span>
+            <span id="hostApp">Detecting...</span>
+        </div>
+        <div class="status-row">
+            <span><strong>HTTP Port:</strong></span>
+            <span id="portDisplay">8088</span>
+        </div>
+        <div class="status-row">
+            <span><strong>Node.js:</strong></span>
+            <span id="nodeStatus">Checking...</span>
+        </div>
+    </div>
+
+    <div><strong>Bridge Activity Log:</strong></div>
+    <div class="log-box" id="logBox">Initializing Argon CEP Bridge listener...</div>
+
+    <script src="js/CSInterface.js"></script>
+    <script src="js/bridge_server.js"></script>
+</body>
+</html>
