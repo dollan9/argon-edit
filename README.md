@@ -57,7 +57,7 @@ argon_video_engine/
 │   ├── director_agent.py             # Hollywood Director Editor powered by Nemotron-70B
 │   ├── vfx_motion_agent.py           # Kinetic text, lower-thirds, ProRes 4444 with Alpha renders
 │   └── audio_master_agent.py         # -14 LUFS loudness, ducking envelopes, SFX, J/L cuts
-├── tests/                            # Comprehensive unit & integration test suite (32 tests)
+├── tests/                            # Comprehensive unit & integration test suite (51 tests + Mock Adobe Server)
 └── main_orchestrator.py              # Self-healing execution loop, CLI, and pipeline entry point
 ```
 

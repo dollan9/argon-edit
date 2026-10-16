@@ -418,14 +418,24 @@ function argon_applyAudioGainAndDucking(aTrackIdx, clipIdx, targetDb) {
             }
         }
 
+        var applied = false;
         if (volComponent) {
             for (var j = 0; j < volComponent.properties.numItems; j++) {
                 var prop = volComponent.properties[j];
                 if (prop.displayName === "Level" || prop.displayName === "Volume") {
                     prop.setValue(db, true);
+                    applied = true;
                     break;
                 }
             }
+        }
+
+        if (!volComponent || !applied) {
+            return JSON.stringify({
+                status: "error",
+                action: "applyAudioGainAndDucking",
+                error: "Audio volume or gain component/property not found on clip index " + cIdx + " on track A" + (aIdx + 1)
+            });
         }
 
         return JSON.stringify({

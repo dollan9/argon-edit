@@ -100,7 +100,7 @@ class DirectorAgent:
 
     def _match_b_roll(
         self,
-        words: List[WordToken],
+        words: List[Any],
         b_roll_files: List[MediaFileAnalysis],
         timeline_cuts: List[TimelineClipAction],
     ) -> List[TimelineClipAction]:
@@ -120,13 +120,19 @@ class DirectorAgent:
             tags.add(Path(b_file.master_filepath).stem.lower())
 
             # Search dialogue transcript for tag matches
-            for w in words:
+            for item in words:
+                if isinstance(item, tuple):
+                    file_id, w = item
+                else:
+                    file_id, w = None, item
+
                 clean_w = w.word.strip().lower()
                 if clean_w in tags:
-                    # Find corresponding timeline_in_sec
+                    # Find corresponding timeline_in_sec matching both source file and time interval
                     matching_action = None
                     for act in timeline_cuts:
-                        if act.src_in_sec <= w.start_sec <= act.src_out_sec:
+                        file_matches = (file_id is None or act.source_file_id == file_id)
+                        if file_matches and act.src_in_sec <= w.start_sec <= act.src_out_sec:
                             offset_in_clip = w.start_sec - act.src_in_sec
                             t_in = act.timeline_in_sec + offset_in_clip
                             if t_in > last_b_roll_end + 3.0:  # Spacing between B-roll
@@ -188,12 +194,15 @@ class DirectorAgent:
         actions: List[TimelineClipAction] = []
         action_id = 1
         timeline_cursor = 0.0
-        punch_in_toggle = False
-        all_spoken_words: List[WordToken] = []
+        words_with_file: List[tuple[str, WordToken]] = []
 
         # 1. Assemble A-Roll with Zero Dead-Air and Punch-Ins
         for file_meta in a_roll_files:
-            all_spoken_words.extend(file_meta.words)
+            # Always reset punch-in toggle to wide at start of new file/take
+            punch_in_toggle = False
+            for w in file_meta.words:
+                words_with_file.append((file_meta.file_id, w))
+
             slices = self._calculate_speech_slices(
                 file_meta.duration_sec,
                 file_meta.bad_spans,
@@ -272,7 +281,7 @@ class DirectorAgent:
 
         # 2. Add Semantic B-roll on V2
         b_roll_actions = self._match_b_roll(
-            all_spoken_words, b_roll_files, [a for a in actions if a.track_type == "VIDEO" and a.track_index == 0]
+            words_with_file, b_roll_files, [a for a in actions if a.track_type == "VIDEO" and a.track_index == 0]
         )
         actions.extend(b_roll_actions)
 

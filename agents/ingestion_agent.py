@@ -10,6 +10,7 @@ Enforces THE PROXY ANALYSIS LAW:
 from __future__ import annotations
 import os
 import re
+import math
 import json
 import wave
 import struct
@@ -170,7 +171,7 @@ class IngestionAgent:
                 self._whisper_model = None
 
     def transcribe_audio(
-        self, wav_path: Path, min_silence_sec: float = 0.25
+        self, wav_path: Path, min_silence_sec: float = 0.25, total_duration: Optional[float] = None
     ) -> Tuple[List[WordToken], List[SilenceOrFillerSpan]]:
         """Run Faster-Whisper transcription with word-level timestamps and dead air detection."""
         self._init_whisper()
@@ -187,21 +188,36 @@ class IngestionAgent:
                 )
 
                 prev_end = 0.0
+                first_word = True
                 for segment in segments:
                     if segment.words:
                         for w in segment.words:
                             clean_word = re.sub(r"[^\w\s]", "", w.word.strip()).lower()
-                            # Dead air check between words
-                            gap = w.start - prev_end
-                            if gap >= min_silence_sec and prev_end > 0.0:
-                                bad_spans.append(
-                                    SilenceOrFillerSpan(
-                                        start_sec=round(prev_end, 3),
-                                        end_sec=round(w.start, 3),
-                                        duration_sec=round(gap, 3),
-                                        kind="dead_air",
+
+                            # Initial dead air check before first word
+                            if first_word:
+                                if w.start >= min_silence_sec:
+                                    bad_spans.append(
+                                        SilenceOrFillerSpan(
+                                            start_sec=0.0,
+                                            end_sec=round(w.start, 3),
+                                            duration_sec=round(w.start, 3),
+                                            kind="dead_air",
+                                        )
                                     )
-                                )
+                                first_word = False
+                            else:
+                                # Dead air check between words
+                                gap = w.start - prev_end
+                                if gap >= min_silence_sec and prev_end > 0.0:
+                                    bad_spans.append(
+                                        SilenceOrFillerSpan(
+                                            start_sec=round(prev_end, 3),
+                                            end_sec=round(w.start, 3),
+                                            duration_sec=round(gap, 3),
+                                            kind="dead_air",
+                                        )
+                                    )
 
                             # Filler word check
                             if clean_word in FILLER_WORDS:
@@ -223,6 +239,20 @@ class IngestionAgent:
                                 )
                             )
                             prev_end = w.end
+
+                # Trailing dead air check after last word
+                effective_duration = total_duration or (info.duration if info else None)
+                if effective_duration and effective_duration > prev_end:
+                    trailing_gap = effective_duration - prev_end
+                    if trailing_gap >= min_silence_sec:
+                        bad_spans.append(
+                            SilenceOrFillerSpan(
+                                start_sec=round(prev_end, 3),
+                                end_sec=round(effective_duration, 3),
+                                duration_sec=round(trailing_gap, 3),
+                                kind="dead_air",
+                            )
+                        )
             except Exception as e:
                 logger.error(f"Whisper transcription failed: {e}. Falling back to energy silence detector.")
                 bad_spans = self._detect_silence_via_rms(wav_path, min_silence_sec)
@@ -234,7 +264,7 @@ class IngestionAgent:
     def _detect_silence_via_rms(
         self, wav_path: Path, min_silence_sec: float = 0.25, threshold_db: float = -38.0
     ) -> List[SilenceOrFillerSpan]:
-        """Energy-based silence detector using WAV PCM chunks."""
+        """Energy-based silence detector using WAV PCM chunks with exact dBFS calculation."""
         spans: List[SilenceOrFillerSpan] = []
         if not wav_path.exists():
             return spans
@@ -262,8 +292,9 @@ class IngestionAgent:
                 # Compute RMS
                 sum_sq = sum(s * s for s in shorts)
                 rms = (sum_sq / count) ** 0.5 if count > 0 else 0
-                # Convert to rough dBFS
-                db = 20 * (rms / 32768.0 + 1e-9)
+                # Convert to exact dBFS using log10
+                ratio = (rms / 32768.0) if rms > 0 else 1e-9
+                db = 20.0 * math.log10(ratio)
 
                 is_silent = (db < threshold_db)
                 if is_silent and not in_silence:
@@ -370,7 +401,7 @@ class IngestionAgent:
         bad_spans: List[SilenceOrFillerSpan] = []
 
         if role in ("A_ROLL_MAIN", "SCREEN_RECORDING"):
-            words, bad_spans = self.transcribe_audio(wav_path)
+            words, bad_spans = self.transcribe_audio(wav_path, total_duration=meta.get("duration"))
 
         scene_intervals = self.detect_scenes(proxy_path, meta["duration"])
         visual_shots: List[VisualShotAnalysis] = []

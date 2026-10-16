@@ -54,8 +54,9 @@ class JSXCompiler:
 
     @staticmethod
     def _escape_js_string(s: str) -> str:
-        """Escape string for safe insertion into JavaScript single-quoted literal."""
-        norm = s.replace("\\", "/")
+        """Escape string for safe insertion into JavaScript double-quoted literal."""
+        norm = str(s).replace("\\", "/")
+        norm = norm.replace("\r", "\\r").replace("\n", "\\n").replace("\t", "\\t")
         return norm.replace('"', '\\"').replace("'", "\\'")
 
     @classmethod

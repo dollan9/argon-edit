@@ -44,6 +44,7 @@
     // -------------------------------------------------------------------------
     var MAX_QUEUE_DEPTH = 50;
     var EXECUTION_BUFFER_MS = 50;
+    var TASK_TIMEOUT_MS = 45000;
     var taskQueue = [];
     var isProcessingQueue = false;
 
@@ -144,8 +145,33 @@
         // Wrap in ES3 try-catch inside ExtendScript using eval() to safely handle declarations and multi-line scripts
         var wrappedScript = "(function() { try { var __res = eval(" + JSON.stringify(scriptToExecute) + "); return (typeof __res === 'string') ? __res : ((typeof JSON !== 'undefined' && JSON.stringify) ? JSON.stringify(__res) : String(__res)); } catch(err) { return 'ARGON_ERROR: ' + (err.message || String(err)) + (err.line ? (' at line ' + err.line) : ''); } })();";
 
+        var hasHandledTask = false;
+        var taskTimer = setTimeout(function () {
+            if (!hasHandledTask) {
+                hasHandledTask = true;
+                logMsg("[Queue Task #" + taskId + "] TIMEOUT after " + (TASK_TIMEOUT_MS / 1000) + "s waiting for ExtendScript response.");
+                sendJSON(res, 504, {
+                    status: "error",
+                    task_id: taskId,
+                    error_trace: "ExtendScript execution timed out after " + (TASK_TIMEOUT_MS / 1000) + " seconds.",
+                    queue_depth: taskQueue.length
+                });
+                setTimeout(function () {
+                    isProcessingQueue = false;
+                    processNextTask();
+                }, EXECUTION_BUFFER_MS);
+            }
+        }, TASK_TIMEOUT_MS);
+
         try {
             csInterface.evalScript(wrappedScript, function (result) {
+                if (hasHandledTask) {
+                    logMsg("[Queue Task #" + taskId + "] Late response ignored after timeout.");
+                    return;
+                }
+                clearTimeout(taskTimer);
+                hasHandledTask = true;
+
                 try {
                     if (typeof result === "string" && result.indexOf("ARGON_ERROR:") === 0) {
                         var errTrace = result.replace("ARGON_ERROR: ", "");
@@ -183,6 +209,10 @@
                 }
             });
         } catch (dispatchErr) {
+            if (hasHandledTask) return;
+            clearTimeout(taskTimer);
+            hasHandledTask = true;
+
             logMsg("[Queue Task #" + taskId + "] csInterface dispatch error: " + dispatchErr.message);
             sendJSON(res, 500, {
                 status: "error",

@@ -94,9 +94,15 @@ function argon_addBadge(text, badgeColor, posX, posY) {
         textItem.size = UnitValue(28, "pt");
 
         var col = new SolidColor();
-        col.rgb.red = 255;
-        col.rgb.green = 50;
-        col.rgb.blue = 50;
+        if (badgeColor && badgeColor.length === 3) {
+            col.rgb.red = parseInt(badgeColor[0], 10);
+            col.rgb.green = parseInt(badgeColor[1], 10);
+            col.rgb.blue = parseInt(badgeColor[2], 10);
+        } else {
+            col.rgb.red = 255;
+            col.rgb.green = 50;
+            col.rgb.blue = 50;
+        }
         textItem.color = col;
 
         var pX = posX ? parseFloat(posX) : doc.width.as("px") * 0.7;

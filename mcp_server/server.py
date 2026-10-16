@@ -238,6 +238,7 @@ async def create_after_effects_vfx_comp(
     comp_name: str,
     text_overlay: str,
     duration_sec: float = 3.0,
+    timeline_in_sec: float = 0.0,
     template_aep: str = "",
 ) -> str:
     """Connect to After Effects (localhost:8089 or aerender), generate a rendered .mov
@@ -247,6 +248,7 @@ async def create_after_effects_vfx_comp(
         comp_name (str): Identifier name for composition.
         text_overlay (str): Kinetic text string to animate.
         duration_sec (float): Duration in seconds.
+        timeline_in_sec (float): Timeline insertion point in seconds (default 0.0).
         template_aep (str): Optional After Effects template project path.
 
     Returns:
@@ -266,12 +268,12 @@ async def create_after_effects_vfx_comp(
             file_path=clean_mov_path,
             src_in_sec=0.0,
             src_out_sec=duration_sec,
-            timeline_in_sec=0.0,
+            timeline_in_sec=timeline_in_sec,
             v_track_idx=2,  # Track V3
             a_track_idx=-1,
         )
         await _send_bridge_request(settings.ppro_bridge_port, ppro_jsx)
-        logger.info(f"Imported rendered VFX callout onto Track V3: {clean_mov_path}")
+        logger.info(f"Imported rendered VFX callout onto Track V3 at {timeline_in_sec}s: {clean_mov_path}")
 
     return str(rendered_mov)
 
@@ -292,9 +294,10 @@ async def generate_photoshop_thumbnail(
     """
     out_p = str(Path(output_psd).resolve()).replace("\\", "/")
     in_p = str(Path(frame_path).resolve()).replace("\\", "/")
+    esc_headline = JSXCompiler._escape_js_string(headline_text)
 
     jsx = (
-        f'argon_createThumbnail("{in_p}", "{headline_text}", "", "{out_p}", 1280, 720);\n'
+        f'argon_createThumbnail("{in_p}", "{esc_headline}", "", "{out_p}", 1280, 720);\n'
         f'argon_addBadge("NEW", [255, 30, 30], 0.75, 0.25);\n'
     )
     await _send_bridge_request(settings.phxs_bridge_port, jsx)

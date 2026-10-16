@@ -148,20 +148,30 @@ class SelfHealingExecutor:
                         except Exception:
                             pass
 
-                    # Verify post-execution timeline state
-                    post_state = await self.get_live_timeline_state()
-                    logger.info("Execution succeeded. Verified live Premiere timeline state.")
+                    # Check for partial errors inside ExtendScript batch execution
+                    batch_errors = result_payload.get("errors", []) if isinstance(result_payload, dict) else []
+                    batch_status = result_payload.get("status") if isinstance(result_payload, dict) else None
 
-                    return {
-                        "status": "success",
-                        "attempts": attempt,
-                        "pre_snapshot_id": snapshot_id,
-                        "post_state": post_state,
-                        "result": result_payload,
-                    }
+                    if batch_status != "partial_error" and not batch_errors:
+                        # Verify post-execution timeline state
+                        post_state = await self.get_live_timeline_state()
+                        logger.info("Execution succeeded. Verified live Premiere timeline state.")
 
-                last_error = res.get("error_trace", str(res))
-                logger.warning(f"Bridge execution reported error on attempt {attempt}: {last_error}")
+                        return {
+                            "status": "success",
+                            "attempts": attempt,
+                            "pre_snapshot_id": snapshot_id,
+                            "post_state": post_state,
+                            "result": result_payload,
+                        }
+
+                    # ExtendScript batch reported internal errors
+                    err_details = "; ".join(f"Action {e.get('action_id')}: {e.get('error')}" for e in batch_errors)
+                    last_error = f"ExtendScript batch execution failed with {len(batch_errors)} error(s): {err_details}"
+                    logger.warning(f"Batch execution partial error on attempt {attempt}: {last_error}")
+                else:
+                    last_error = res.get("error_trace", str(res))
+                    logger.warning(f"Bridge execution reported error on attempt {attempt}: {last_error}")
 
             except Exception as net_err:
                 last_error = str(net_err)

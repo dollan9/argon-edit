@@ -10,3 +10,7 @@ workspace/
 dist/
 build/
 .pytest_cache/
+.env
+*.db
+*.sqlite
+*.sqlite3

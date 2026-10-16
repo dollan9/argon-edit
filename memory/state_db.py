@@ -36,6 +36,7 @@ class StateDB:
     def _get_connection(self):
         conn = sqlite3.connect(str(self.db_path))
         conn.row_factory = sqlite3.Row
+        conn.execute("PRAGMA foreign_keys = ON;")
         try:
             yield conn
             conn.commit()
@@ -186,6 +187,15 @@ class StateDB:
         """Capture live timeline state for rollback verification."""
         now = datetime.now(timezone.utc).isoformat()
         with self._get_connection() as conn:
+            proj_row = conn.execute("SELECT 1 FROM projects WHERE project_id = ?", (project_id,)).fetchone()
+            if not proj_row:
+                conn.execute(
+                    """
+                    INSERT INTO projects (project_id, name, status, created_at, updated_at, metadata_json)
+                    VALUES (?, ?, ?, ?, ?, ?)
+                    """,
+                    (project_id, project_id, "active", now, now, json.dumps({"auto_created": True})),
+                )
             cursor = conn.execute(
                 """
                 INSERT INTO timeline_snapshots (project_id, plan_id, timeline_state_json, created_at)
