@@ -18,8 +18,12 @@
 - [x] P3 Fixed: Configurable `timeline_in_sec` added to `create_after_effects_vfx_comp`.
 - [x] P3 Fixed: Array-based `badgeColor` support added in `photoshop_core.jsx`.
 - [x] Regression suite `tests/test_hack_fixes.py` created with 7/7 tests passing.
-- [x] Full test suite (51 tests) executed and passing 100% in 2.18s.
+- [x] Audit hardening: `validate_es3` strips comments/strings to prevent false positives (52 tests passing).
+- [x] Audit hardening: `-loglevel error` and `shutil.which` added to all FFmpeg calls across all agents.
+- [x] Audit hardening: `bridge_server.js` memory cleanup and garbage collection nulling on finished tasks.
+- [x] Full test suite (52 tests) executed and passing 100% in 1.67s.
 - [x] Independent Hermes review executed on diff with 0 actionable findings.
+- [x] Pushed to GitHub repository: `https://github.com/dollan9/argon-edit`.
 
 ## 3. Active Work in Flight
 - Final user milestone reporting in Swedish.
