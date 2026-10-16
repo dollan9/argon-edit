@@ -11,7 +11,24 @@ import logging
 from pathlib import Path
 from typing import Dict, Any, Optional, List
 import httpx
-from mcp.server.fastmcp import FastMCP
+try:
+    from mcp.server.mcpserver import MCPServer as FastMCP
+except ImportError:
+    try:
+        from mcp.server.fastmcp import FastMCP
+    except ImportError:
+        class FastMCP:  # type: ignore
+            def __init__(self, name: str):
+                self.name = name
+
+            def tool(self):
+                def decorator(fn):
+                    return fn
+
+                return decorator
+
+            def run(self):
+                pass
 
 from config.settings import get_settings
 from mcp_server.jsx_compiler import JSXCompiler

@@ -90,7 +90,7 @@ class JSXCompiler:
         src_out_sec: float,
         timeline_in_sec: float,
         v_track_idx: int = 0,
-        a_track_idx: int = 0,
+        a_track_idx: int = -1,
     ) -> str:
         escaped = cls._escape_js_string(file_path)
         code = (
@@ -166,33 +166,49 @@ class JSXCompiler:
         lines.append("    results.push({ action: 'importFiles', result: importRes });")
         lines.append("")
 
+        # Track placed clip counts per track for correct index resolution
+        v_track_clip_counts: Dict[int, int] = {}
+        a_track_clip_counts: Dict[int, int] = {}
+
         # 2. Sequential clip inserts and transform applications
         for idx, act in enumerate(plan.actions):
             t_in = float(act.timeline_in_sec)
             s_in = float(act.src_in_sec)
             s_out = float(act.src_out_sec)
-            v_idx = act.track_index if act.track_type == "VIDEO" else 0
-            a_idx = act.track_index if act.track_type == "AUDIO" else 0
+            is_video = (act.track_type == "VIDEO")
+            v_idx = act.track_index if is_video else -1
+            a_idx = act.track_index if not is_video else -1
             esc_path = cls._escape_js_string(act.master_filepath)
 
-            lines.append(f"    // Action {act.action_id} ({act.track_type})")
+            lines.append(f"    // Action {act.action_id} ({act.track_type} Track {act.track_index})")
             lines.append("    try {")
             lines.append(
                 f'        var r{idx} = argon_insertClip("{esc_path}", {s_in}, {s_out}, {t_in}, {v_idx}, {a_idx});'
             )
             lines.append(f"        results.push({{ action_id: {act.action_id}, res: r{idx} }});")
 
-            # Apply keyframe transforms (punch-ins)
-            for kf in act.keyframes:
-                if kf.scale != 100.0 or kf.pos_x != 0.5 or kf.pos_y != 0.5:
-                    lines.append(
-                        f"        argon_applyTransform({v_idx}, 0, {kf.scale}, {kf.pos_x}, {kf.pos_y});"
-                    )
+            if is_video and v_idx >= 0:
+                clip_c = v_track_clip_counts.get(v_idx, 0)
+                v_track_clip_counts[v_idx] = clip_c + 1
 
-            # Apply LUT if specified
-            if act.lumetri_lut_path:
-                lut_esc = cls._escape_js_string(act.lumetri_lut_path)
-                lines.append(f'        argon_applyLumetriLUT({v_idx}, 0, "{lut_esc}");')
+                lines.append(f"        var pr{idx} = (typeof JSON !== 'undefined' && JSON.parse) ? JSON.parse(r{idx}) : null;")
+                lines.append(f"        var cIdx{idx} = (pr{idx} && typeof pr{idx}.clipIndex !== 'undefined' && pr{idx}.clipIndex >= 0) ? pr{idx}.clipIndex : {clip_c};")
+
+                # Apply keyframe transforms (punch-ins)
+                for kf in act.keyframes:
+                    if kf.scale != 100.0 or kf.pos_x != 0.5 or kf.pos_y != 0.5:
+                        lines.append(
+                            f"        argon_applyTransform({v_idx}, cIdx{idx}, {kf.scale}, {kf.pos_x}, {kf.pos_y});"
+                        )
+
+                # Apply LUT if specified
+                if act.lumetri_lut_path:
+                    lut_esc = cls._escape_js_string(act.lumetri_lut_path)
+                    lines.append(f'        argon_applyLumetriLUT({v_idx}, cIdx{idx}, "{lut_esc}");')
+
+            elif not is_video and a_idx >= 0:
+                clip_c = a_track_clip_counts.get(a_idx, 0)
+                a_track_clip_counts[a_idx] = clip_c + 1
 
             lines.append("    } catch (actErr) {")
             lines.append(

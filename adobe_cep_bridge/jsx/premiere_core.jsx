@@ -4,12 +4,34 @@
 var ARGON_TICKS_PER_SEC = 254016000000;
 
 /**
- * Converts seconds to exact Premiere ticks string
+ * Converts seconds to exact Premiere ticks string, with frame-boundary snapping.
+ * Supports fractional timebases: 23.976 (24000/1001), 29.97 (30000/1001), 59.94 (60000/1001).
  */
-function argon_secToTicks(sec) {
+function argon_secToTicks(sec, fps) {
     var floatVal = parseFloat(sec);
     if (isNaN(floatVal)) {
         floatVal = 0.0;
+    }
+    if (typeof fps !== "undefined" && fps !== null && parseFloat(fps) > 0) {
+        var fpsVal = parseFloat(fps);
+        var frameNum = 0;
+        if (Math.abs(fpsVal - 23.976) < 0.01 || Math.abs(fpsVal - 23.98) < 0.01) {
+            // 24000/1001 fps
+            frameNum = Math.round(floatVal * 24000 / 1001);
+            return String(Math.round(frameNum * (ARGON_TICKS_PER_SEC * 1001 / 24000)));
+        } else if (Math.abs(fpsVal - 29.97) < 0.01) {
+            // 30000/1001 fps
+            frameNum = Math.round(floatVal * 30000 / 1001);
+            return String(Math.round(frameNum * (ARGON_TICKS_PER_SEC * 1001 / 30000)));
+        } else if (Math.abs(fpsVal - 59.94) < 0.02) {
+            // 60000/1001 fps
+            frameNum = Math.round(floatVal * 60000 / 1001);
+            return String(Math.round(frameNum * (ARGON_TICKS_PER_SEC * 1001 / 60000)));
+        } else {
+            // Standard integer fps (24, 25, 30, 50, 60)
+            frameNum = Math.round(floatVal * fpsVal);
+            return String(Math.round(frameNum * (ARGON_TICKS_PER_SEC / fpsVal)));
+        }
     }
     var ticks = Math.round(floatVal * ARGON_TICKS_PER_SEC);
     return String(ticks);
@@ -213,42 +235,64 @@ function argon_insertClip(filePath, srcInSec, srcOutSec, timelineInSec, vTrackId
         projectItem.setInPoint(inTicksStr, 4);
         projectItem.setOutPoint(outTicksStr, 4);
 
-        var vIdx = (typeof vTrackIdx !== "undefined" && vTrackIdx !== null) ? parseInt(vTrackIdx, 10) : 0;
+        var vIdx = (typeof vTrackIdx !== "undefined" && vTrackIdx !== null) ? parseInt(vTrackIdx, 10) : -1;
+        var aIdx = (typeof aTrackIdx !== "undefined" && aTrackIdx !== null) ? parseInt(aTrackIdx, 10) : -1;
         var tInSec = parseFloat(timelineInSec);
         var tInTicks = argon_secToTicks(tInSec);
 
-        // Ensure sufficient video tracks
-        while (seq.videoTracks.numTracks <= vIdx) {
-            if (qe && qe.project && qe.project.getActiveSequence()) {
-                qe.project.getActiveSequence().addVideoTrack();
-            } else {
-                break;
+        // Time object with exact seconds & ticks
+        var timeObj = new Time();
+        timeObj.seconds = tInSec;
+        timeObj.ticks = tInTicks;
+
+        var placedVClipIdx = -1;
+        var placedAClipIdx = -1;
+
+        // Video track insertion
+        if (vIdx >= 0) {
+            while (seq.videoTracks.numTracks <= vIdx) {
+                if (qe && qe.project && qe.project.getActiveSequence()) {
+                    qe.project.getActiveSequence().addVideoTrack();
+                } else {
+                    break;
+                }
+            }
+            var targetVTrack = seq.videoTracks[vIdx];
+            if (targetVTrack) {
+                targetVTrack.overwriteClip(projectItem, timeObj);
+                var numVClips = (typeof targetVTrack.clips.numItems !== "undefined") ? targetVTrack.clips.numItems : targetVTrack.clips.numTracks;
+                placedVClipIdx = (numVClips > 0) ? numVClips - 1 : 0;
             }
         }
 
-        var targetVTrack = seq.videoTracks[vIdx];
-        if (!targetVTrack) {
-            return JSON.stringify({ status: "error", error: "Video track index " + vIdx + " out of bounds." });
+        // Audio track insertion
+        if (aIdx >= 0) {
+            while (seq.audioTracks.numTracks <= aIdx) {
+                if (qe && qe.project && qe.project.getActiveSequence()) {
+                    qe.project.getActiveSequence().addAudioTrack();
+                } else {
+                    break;
+                }
+            }
+            var targetATrack = seq.audioTracks[aIdx];
+            if (targetATrack) {
+                targetATrack.overwriteClip(projectItem, timeObj);
+                var numAClips = (typeof targetATrack.clips.numItems !== "undefined") ? targetATrack.clips.numItems : targetATrack.clips.numTracks;
+                placedAClipIdx = (numAClips > 0) ? numAClips - 1 : 0;
+            }
         }
 
-        // Use Time object with exact seconds / ticks for overwriteClip
-        var timeObj = new Time();
-        timeObj.seconds = tInSec;
-
-        targetVTrack.overwriteClip(projectItem, timeObj);
-
-        // Verify placed clip
-        var clipPlaced = null;
-        var numClips = targetVTrack.clips.numTracks; // Premiere TrackItemCollection numTracks/numItems
-        if (typeof targetVTrack.clips.numItems !== "undefined") {
-            numClips = targetVTrack.clips.numItems;
-        }
+        var finalClipIdx = (placedVClipIdx >= 0) ? placedVClipIdx : placedAClipIdx;
 
         return JSON.stringify({
             status: "ok",
             action: "insertClip",
             filePath: filePath,
             vTrackIdx: vIdx,
+            aTrackIdx: aIdx,
+            clipIndex: finalClipIdx,
+            vClipIndex: placedVClipIdx,
+            aClipIndex: placedAClipIdx,
             srcInSec: srcInSec,
             srcOutSec: srcOutSec,
             timelineInSec: tInSec,
