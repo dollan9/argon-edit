@@ -86,9 +86,18 @@ class SelfHealingExecutor:
         for pattern, fix in [
             (r"\bconst\s+", "var "),
             (r"\blet\s+", "var "),
-            (r"\.forEach\s*\(", "/* replaced */ .slice().forEach("),
         ]:
             patched = re.sub(pattern, fix, patched)
+
+        # Inject ES3 Array polyfills if forEach/map/filter used or referenced in error
+        if any(token in patched for token in (".forEach(", ".map(", ".filter(")) or "foreach" in error_trace.lower():
+            logger.info("Injecting ES3 Array polyfill into JSX payload.")
+            polyfill = (
+                "if (!Array.prototype.forEach) { Array.prototype.forEach = function(fn, scope) { for (var i = 0; i < this.length; i++) { if (i in this) fn.call(scope, this[i], i, this); } }; }\n"
+                "if (!Array.prototype.map) { Array.prototype.map = function(fn, scope) { var res = []; for (var i = 0; i < this.length; i++) { if (i in this) res.push(fn.call(scope, this[i], i, this)); } return res; }; }\n"
+                "if (!Array.prototype.filter) { Array.prototype.filter = function(fn, scope) { var res = []; for (var i = 0; i < this.length; i++) { if (i in this && fn.call(scope, this[i], i, this)) res.push(this[i]); } return res; }; }\n"
+            )
+            patched = polyfill + patched
 
         # 3. Time calculation sanity: verify tick constant is integer
         if "254016000000" not in patched and "ticks" in error_trace.lower():
@@ -260,6 +269,33 @@ class ArgonEngine:
             "elapsed_seconds": round(elapsed, 2),
         }
 
+    async def run_ingest_pipeline(self, folder_path: str) -> MediaAnalysisManifest:
+        """Run Ingestion + Vision on raw footage directory without executing edits in Premiere."""
+        input_dir = Path(folder_path).resolve()
+        valid_exts = {".mp4", ".mov", ".mkv", ".avi", ".m4v"}
+        files = [f for f in input_dir.iterdir() if f.suffix.lower() in valid_exts]
+        if not files:
+            raise ValueError(f"No valid video files found in {input_dir}")
+
+        manifest = MediaAnalysisManifest(
+            manifest_id=f"manifest_{input_dir.name}_{int(time.time())}",
+            project_name=input_dir.name,
+        )
+        proj_id = self.state_db.create_project(input_dir.name, {"folder": str(input_dir)})
+
+        for idx, media_file in enumerate(files):
+            role = "A_ROLL_MAIN" if idx == 0 else "B_ROLL"
+            analysis = self.ingestion.analyze_file(str(media_file), role=role)
+            enriched = await self.vision.enrich_media_analysis(analysis)
+            manifest.files.append(enriched)
+            self.state_db.save_media_file(proj_id, enriched)
+
+        out_path = self.settings.workspace_dir / f"{manifest.manifest_id}.json"
+        with open(out_path, "w", encoding="utf-8") as f:
+            f.write(manifest.model_dump_json(indent=2))
+        logger.info(f"Ingestion complete: saved manifest to {out_path}")
+        return manifest
+
 
 def main():
     parser = argparse.ArgumentParser(description="Argon Autonomous Video Engine CLI")
@@ -305,9 +341,10 @@ def main():
     if args.command == "ingest":
         loop = asyncio.new_event_loop()
         manifest = loop.run_until_complete(
-            engine.run_full_pipeline(args.folder, editing_style="Retention")
+            engine.run_ingest_pipeline(args.folder)
         )
-        print(f"[+] Ingestion complete for {args.folder}")
+        print(f"[+] Ingestion complete for {args.folder}: {len(manifest.files)} files analyzed.")
+        print(f"Manifest ID: {manifest.manifest_id}")
 
 
 if __name__ == "__main__":

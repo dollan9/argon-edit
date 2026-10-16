@@ -141,8 +141,8 @@
 
         logMsg("[Queue Task #" + taskId + "] Executing (" + taskQueue.length + " remaining in queue)...");
 
-        // Wrap in ES3 try-catch inside ExtendScript to catch ExtendScript runtime errors
-        var wrappedScript = "(function() { try { var __res = " + scriptToExecute + "; return (typeof __res === 'string') ? __res : ((typeof JSON !== 'undefined' && JSON.stringify) ? JSON.stringify(__res) : String(__res)); } catch(err) { return 'ARGON_ERROR: ' + (err.message || String(err)) + (err.line ? (' at line ' + err.line) : ''); } })();";
+        // Wrap in ES3 try-catch inside ExtendScript using eval() to safely handle declarations and multi-line scripts
+        var wrappedScript = "(function() { try { var __res = eval(" + JSON.stringify(scriptToExecute) + "); return (typeof __res === 'string') ? __res : ((typeof JSON !== 'undefined' && JSON.stringify) ? JSON.stringify(__res) : String(__res)); } catch(err) { return 'ARGON_ERROR: ' + (err.message || String(err)) + (err.line ? (' at line ' + err.line) : ''); } })();";
 
         try {
             csInterface.evalScript(wrappedScript, function (result) {

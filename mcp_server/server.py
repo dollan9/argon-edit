@@ -103,7 +103,7 @@ async def inspect_live_premiere_timeline() -> Dict[str, Any]:
 
 
 @mcp.tool()
-async def ingest_and_analyze_footage(folder_path: str) -> Dict[str, Any]:
+async def ingest_and_analyze_footage(folder_path: str) -> MediaAnalysisManifest:
     """Run Ingestion + Vision agents on raw footage in a directory.
 
     Extracts 16kHz audio for Whisper transcription and 480p proxy for scene detection,
@@ -113,17 +113,17 @@ async def ingest_and_analyze_footage(folder_path: str) -> Dict[str, Any]:
         folder_path (str): Absolute directory path containing media files.
 
     Returns:
-        Dict[str, Any]: Serialized MediaAnalysisManifest containing all analyzed clips.
+        MediaAnalysisManifest: Manifest containing all analyzed clips and shots.
     """
     p = Path(folder_path).resolve()
     if not p.exists() or not p.is_dir():
-        return {"status": "error", "error": f"Directory not found: {folder_path}"}
+        raise FileNotFoundError(f"Directory not found: {folder_path}")
 
     valid_extensions = {".mp4", ".mov", ".mkv", ".avi", ".m4v"}
     media_files = [f for f in p.iterdir() if f.suffix.lower() in valid_extensions]
 
     if not media_files:
-        return {"status": "error", "error": f"No video files found in {folder_path}"}
+        raise ValueError(f"No video files found in {folder_path}")
 
     manifest = MediaAnalysisManifest(
         manifest_id=f"manifest_{p.name}_{len(media_files)}files",
@@ -144,14 +144,7 @@ async def ingest_and_analyze_footage(folder_path: str) -> Dict[str, Any]:
     with open(out_manifest_path, "w", encoding="utf-8") as out_f:
         out_f.write(manifest.model_dump_json(indent=2))
 
-    return {
-        "status": "ok",
-        "manifest_id": manifest.manifest_id,
-        "project_id": proj_id,
-        "files_analyzed": len(manifest.files),
-        "manifest_path": str(out_manifest_path),
-        "manifest": manifest.model_dump(),
-    }
+    return manifest
 
 
 @mcp.tool()
@@ -159,7 +152,7 @@ async def generate_master_edit_plan(
     manifest_path: str,
     editing_style: str = "Retention",
     user_prompt: str = "",
-) -> Dict[str, Any]:
+) -> MasterEditPlan:
     """Run Nemotron Director Agent to plan cuts, B-roll, punch-ins, and J/L-cuts.
 
     Args:
@@ -168,11 +161,11 @@ async def generate_master_edit_plan(
         user_prompt (str): Additional artistic instructions or constraints.
 
     Returns:
-        Dict[str, Any]: Complete MasterEditPlan JSON.
+        MasterEditPlan: Complete Hollywood edit decision list.
     """
     m_path = Path(manifest_path).resolve()
     if not m_path.exists():
-        return {"status": "error", "error": f"Manifest file not found: {manifest_path}"}
+        raise FileNotFoundError(f"Manifest file not found: {manifest_path}")
 
     with open(m_path, "r", encoding="utf-8") as f:
         data = json.load(f)
@@ -194,14 +187,7 @@ async def generate_master_edit_plan(
     with open(out_plan_path, "w", encoding="utf-8") as out_f:
         out_f.write(plan.model_dump_json(indent=2))
 
-    return {
-        "status": "ok",
-        "plan_id": plan.plan_id,
-        "timeline_duration_sec": plan.timeline_duration_sec,
-        "total_actions": len(plan.actions),
-        "plan_path": str(out_plan_path),
-        "plan": plan.model_dump(),
-    }
+    return plan
 
 
 @mcp.tool()
@@ -253,9 +239,9 @@ async def create_after_effects_vfx_comp(
     text_overlay: str,
     duration_sec: float = 3.0,
     template_aep: str = "",
-) -> Dict[str, Any]:
-    """Connect to After Effects (localhost:8089), generate a rendered ProRes 4444 .mov or MOGRT,
-    and prepare it for import onto Track V3 in Premiere Pro.
+) -> str:
+    """Connect to After Effects (localhost:8089 or aerender), generate a rendered .mov
+    (ProRes 4444 with Alpha) or .mogrt, and import it directly onto Track V3 in Premiere Pro.
 
     Args:
         comp_name (str): Identifier name for composition.
@@ -264,19 +250,36 @@ async def create_after_effects_vfx_comp(
         template_aep (str): Optional After Effects template project path.
 
     Returns:
-        Dict[str, Any]: Resulting rendered media path and status.
+        str: Absolute file path to the rendered ProRes 4444 overlay imported into Premiere Pro.
     """
-    return await vfx_agent.create_text_callout_overlay(
+    vfx_res = await vfx_agent.create_text_callout_overlay(
         text=text_overlay,
         duration_sec=duration_sec,
         comp_name=comp_name,
     )
+    rendered_mov = vfx_res.get("output_path", "")
+
+    # Import directly onto Track V3 (index 2) in Premiere Pro via CEP bridge
+    if rendered_mov and os.path.exists(rendered_mov):
+        clean_mov_path = str(Path(rendered_mov).resolve()).replace("\\", "/")
+        ppro_jsx = JSXCompiler.compile_insert_clip(
+            file_path=clean_mov_path,
+            src_in_sec=0.0,
+            src_out_sec=duration_sec,
+            timeline_in_sec=0.0,
+            v_track_idx=2,  # Track V3
+            a_track_idx=-1,
+        )
+        await _send_bridge_request(settings.ppro_bridge_port, ppro_jsx)
+        logger.info(f"Imported rendered VFX callout onto Track V3: {clean_mov_path}")
+
+    return str(rendered_mov)
 
 
 @mcp.tool()
 async def generate_photoshop_thumbnail(
     frame_path: str, headline_text: str, output_psd: str
-) -> Dict[str, Any]:
+) -> str:
     """Connect to Photoshop (localhost:8090) to create a high-CTR YouTube thumbnail.
 
     Args:
@@ -285,7 +288,7 @@ async def generate_photoshop_thumbnail(
         output_psd (str): Output file path for PSD / PNG.
 
     Returns:
-        Dict[str, Any]: Status and resulting thumbnail path.
+        str: Absolute output file path of the generated thumbnail.
     """
     out_p = str(Path(output_psd).resolve()).replace("\\", "/")
     in_p = str(Path(frame_path).resolve()).replace("\\", "/")
@@ -294,18 +297,14 @@ async def generate_photoshop_thumbnail(
         f'argon_createThumbnail("{in_p}", "{headline_text}", "", "{out_p}", 1280, 720);\n'
         f'argon_addBadge("NEW", [255, 30, 30], 0.75, 0.25);\n'
     )
-    res = await _send_bridge_request(settings.phxs_bridge_port, jsx)
-    return {
-        "status": res.get("status", "ok"),
-        "thumbnail_path": output_psd,
-        "bridge_response": res,
-    }
+    await _send_bridge_request(settings.phxs_bridge_port, jsx)
+    return str(Path(output_psd).resolve())
 
 
 @mcp.tool()
 async def save_editing_rule_to_memory(
     rule_description: str, parameters: Dict[str, Any]
-) -> Dict[str, Any]:
+) -> str:
     """Save user preferences and artistic editing rules into ChromaDB vector store.
 
     Args:
@@ -313,14 +312,10 @@ async def save_editing_rule_to_memory(
         parameters (Dict[str, Any]): Structured numerical adjustments (e.g. {'scale': 1.12}).
 
     Returns:
-        Dict[str, Any]: Saved rule identifier and confirmation.
+        str: Saved rule identifier string.
     """
     rule_id = await style_memory.add_rule(rule_description, parameters)
-    return {
-        "status": "ok",
-        "rule_id": rule_id,
-        "message": f"Rule successfully memorized in persistent vector store.",
-    }
+    return str(rule_id)
 
 
 if __name__ == "__main__":

@@ -29,6 +29,20 @@ class TestOrchestrator(unittest.TestCase):
         patched = self.executor.auto_debug_patch(broken_jsx, error)
         self.assertIn("app.enableQE()", patched)
 
+    def test_auto_debug_injects_array_polyfill_on_foreach(self):
+        code_with_foreach = "items.forEach(function(item) { doSomething(item); });"
+        error = "TypeError: Object has no method 'forEach'"
+        patched = self.executor.auto_debug_patch(code_with_foreach, error)
+        self.assertIn("Array.prototype.forEach", patched)
+        self.assertNotIn(".slice().forEach", patched)
+
+    def test_orchestrator_has_ingest_pipeline(self):
+        from main_orchestrator import ArgonEngine
+        import inspect
+        engine = ArgonEngine()
+        self.assertTrue(hasattr(engine, "run_ingest_pipeline"))
+        self.assertTrue(inspect.iscoroutinefunction(engine.run_ingest_pipeline))
+
 
 if __name__ == "__main__":
     unittest.main()

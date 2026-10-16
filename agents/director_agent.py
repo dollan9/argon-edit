@@ -84,14 +84,16 @@ class DirectorAgent:
         current_in = 0.0
 
         for span in spans_to_cut:
-            cut_start = max(0.0, span.start_sec + breath_padding)
-            cut_end = min(duration, span.end_sec - breath_padding)
+            # Clamp breath padding so it does not exceed half the span duration
+            effective_pad = min(breath_padding, span.duration_sec / 2.0)
+            cut_start = max(current_in, span.start_sec + effective_pad)
+            cut_end = max(cut_start, span.end_sec - effective_pad)
 
-            if cut_start > current_in + 0.15:
+            if cut_start > current_in + 0.10:
                 slices.append((round(current_in, 3), round(cut_start, 3)))
             current_in = max(current_in, cut_end)
 
-        if current_in < duration - 0.15:
+        if current_in < duration - 0.10:
             slices.append((round(current_in, 3), round(duration, 3)))
 
         return slices if slices else [(0.0, round(duration, 3))]

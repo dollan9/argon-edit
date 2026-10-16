@@ -34,6 +34,25 @@ class TestDirectorLogic(unittest.TestCase):
         self.assertEqual(slices[1][0], 3.94)
         self.assertEqual(slices[1][1], 10.0)
 
+    def test_short_filler_does_not_produce_overlapping_slices(self):
+        # 0.10s filler word (less than 2 * 0.06s breath padding)
+        bad_spans = [
+            SilenceOrFillerSpan(start_sec=5.0, end_sec=5.10, duration_sec=0.10, kind="um_uh_filler")
+        ]
+        slices = self.director._calculate_speech_slices(
+            duration=10.0,
+            bad_spans=bad_spans,
+            max_silence=0.25,
+            breath_padding=0.06,
+        )
+        self.assertEqual(len(slices), 2)
+        # End of first slice must be <= start of second slice (zero overlap)
+        self.assertLessEqual(slices[0][1], slices[1][0])
+        self.assertEqual(slices[0][0], 0.0)
+        self.assertEqual(slices[0][1], 5.05)
+        self.assertEqual(slices[1][0], 5.05)
+        self.assertEqual(slices[1][1], 10.0)
+
     def test_dynamic_punch_in_alternation(self):
         # A-roll with two speech segments separated by pause
         a_roll = MediaFileAnalysis(

@@ -78,7 +78,7 @@ class AudioMasterAgent:
     def apply_jl_cut_offsets(
         self, plan: MasterEditPlan, offset_sec: float = 0.25
     ) -> MasterEditPlan:
-        """Enforce J-cuts (audio starts before video) or L-cuts on scene transitions."""
+        """Enforce J-cuts (audio starts before video) or L-cuts on scene transitions and B-roll cutaways."""
         v_clips = [a for a in plan.actions if a.track_type == "VIDEO"]
         a_clips = [a for a in plan.actions if a.track_type == "AUDIO"]
 
@@ -86,8 +86,11 @@ class AudioMasterAgent:
             prev_v = v_clips[idx - 1]
             curr_v = v_clips[idx]
 
-            # If moving to a new master file (scene transition)
-            if curr_v.source_file_id != prev_v.source_file_id:
+            # Scene transition or A-roll to B-roll cutaway
+            is_scene_transition = (curr_v.source_file_id != prev_v.source_file_id)
+            is_b_roll_transition = (curr_v.track_index != prev_v.track_index)
+
+            if is_scene_transition or is_b_roll_transition:
                 # Find matching dialogue audio action for curr_v
                 for a_act in a_clips:
                     if (
@@ -102,6 +105,8 @@ class AudioMasterAgent:
                             a_act.reasoning += f" Applied J-cut audio lead of -{offset_sec}s."
                             curr_v.j_l_cut_audio_offset_sec = -offset_sec
                         break
+                if is_b_roll_transition and curr_v.track_index == 1 and curr_v.j_l_cut_audio_offset_sec == 0.0:
+                    curr_v.j_l_cut_audio_offset_sec = -offset_sec
 
         return plan
 

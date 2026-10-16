@@ -84,7 +84,46 @@ class TestJSXCompiler(unittest.TestCase):
         self.assertIn("argon_importFiles", batch)
         self.assertIn("argon_applyTransform(0,", batch)
         self.assertIn("108.0", batch)
+        # Verify that clip index for action 2 defaults to 1 (second clip), not 0
+        self.assertIn("cIdx1", batch)
         # Verify strict ES3 compliance of the whole generated batch
+        self.assertEqual(len(JSXCompiler.validate_es3(batch, raise_on_error=False)), 0)
+
+    def test_compile_video_and_audio_separate_tracks(self):
+        video_act = TimelineClipAction(
+            action_id=1,
+            track_type="VIDEO",
+            track_index=0,
+            source_file_id="clip_01",
+            master_filepath="C:/footage/a_roll.mp4",
+            src_in_sec=0.0,
+            src_out_sec=3.0,
+            timeline_in_sec=0.0,
+            reasoning="V1 dialogue",
+        )
+        audio_act = TimelineClipAction(
+            action_id=2,
+            track_type="AUDIO",
+            track_index=2,  # A3 (Music)
+            source_file_id="music_01",
+            master_filepath="C:/music/bg.mp3",
+            src_in_sec=0.0,
+            src_out_sec=10.0,
+            timeline_in_sec=0.0,
+            reasoning="A3 background music",
+        )
+        plan = MasterEditPlan(
+            plan_id="track_test",
+            project_title="Track Test",
+            timeline_duration_sec=10.0,
+            actions=[video_act, audio_act],
+        )
+        batch = JSXCompiler.compile_edit_plan_batch(plan)
+
+        # Video action must have v_idx=0 and a_idx=-1
+        self.assertIn('argon_insertClip("C:/footage/a_roll.mp4", 0.0, 3.0, 0.0, 0, -1)', batch)
+        # Audio action must have v_idx=-1 and a_idx=2 (not overwriting V1!)
+        self.assertIn('argon_insertClip("C:/music/bg.mp3", 0.0, 10.0, 0.0, -1, 2)', batch)
         self.assertEqual(len(JSXCompiler.validate_es3(batch, raise_on_error=False)), 0)
 
 
