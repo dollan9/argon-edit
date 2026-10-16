@@ -11,6 +11,7 @@ from __future__ import annotations
 import math
 import logging
 import subprocess
+import shutil
 from pathlib import Path
 from typing import List, Dict, Any, Optional
 
@@ -156,9 +157,11 @@ class AudioMasterAgent:
         lufs = target_lufs or self.target_lufs
         output_wav.parent.mkdir(parents=True, exist_ok=True)
 
+        ffmpeg_bin = shutil.which("ffmpeg") or "ffmpeg"
         cmd = [
-            "ffmpeg",
+            ffmpeg_bin,
             "-y",
+            "-loglevel", "error",
             "-i", str(input_wav),
             "-af", f"loudnorm=I={lufs}:TP=-1.5:LRA=11",
             "-ar", "48000",

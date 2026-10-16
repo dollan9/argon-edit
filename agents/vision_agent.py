@@ -10,6 +10,7 @@ import os
 import base64
 import logging
 import subprocess
+import shutil
 from pathlib import Path
 from typing import List, Optional, Dict, Any
 
@@ -41,9 +42,11 @@ class VisionAgent:
         if out_jpg.exists():
             return out_jpg
 
+        ffmpeg_bin = shutil.which("ffmpeg") or "ffmpeg"
         cmd = [
-            "ffmpeg",
+            ffmpeg_bin,
             "-y",
+            "-loglevel", "error",
             "-ss", str(max(0.0, timestamp_sec)),
             "-i", str(proxy_path),
             "-frames:v", "1",
