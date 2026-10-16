@@ -126,6 +126,19 @@ class TestJSXCompiler(unittest.TestCase):
         self.assertIn('argon_insertClip("C:/music/bg.mp3", 0.0, 10.0, 0.0, -1, 2)', batch)
         self.assertEqual(len(JSXCompiler.validate_es3(batch, raise_on_error=False)), 0)
 
+    def test_es3_validation_ignores_strings_and_comments(self):
+        """Verify that words like 'const' or 'let' inside strings or comments do not trigger false positives."""
+        valid_code_with_keywords_in_literals = '''
+        // const old_unused_var = 1;
+        /* let me explain how this works */
+        var title = "The constant gardener";
+        var subtitle = 'let it be';
+        var desc = "Values like => or .map() in dialogue: let us go";
+        '''
+        violations = JSXCompiler.validate_es3(valid_code_with_keywords_in_literals, raise_on_error=True)
+        self.assertEqual(len(violations), 0)
+
 
 if __name__ == "__main__":
     unittest.main()
+

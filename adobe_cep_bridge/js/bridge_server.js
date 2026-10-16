@@ -109,6 +109,9 @@
 
     // Set CORS and headers
     function sendJSON(res, statusCode, payload) {
+        if (!res || res.writableEnded || res.finished) {
+            return;
+        }
         res.writeHead(statusCode, {
             "Content-Type": "application/json; charset=utf-8",
             "Access-Control-Allow-Origin": "*",
@@ -140,6 +143,9 @@
         var res = task.res;
         var taskId = task.id;
 
+        // Clear reference inside queue object immediately to free memory
+        task.res = null;
+
         logMsg("[Queue Task #" + taskId + "] Executing (" + taskQueue.length + " remaining in queue)...");
 
         // Wrap in ES3 try-catch inside ExtendScript using eval() to safely handle declarations and multi-line scripts
@@ -156,6 +162,8 @@
                     error_trace: "ExtendScript execution timed out after " + (TASK_TIMEOUT_MS / 1000) + " seconds.",
                     queue_depth: taskQueue.length
                 });
+                res = null;
+                task = null;
                 setTimeout(function () {
                     isProcessingQueue = false;
                     processNextTask();
@@ -201,6 +209,8 @@
                 } catch (sendErr) {
                     logMsg("[Queue Task #" + taskId + "] Response send error: " + sendErr.message);
                 } finally {
+                    res = null;
+                    task = null;
                     // Mandatory 50ms buffer before releasing lock and processing next queued task
                     setTimeout(function () {
                         isProcessingQueue = false;
@@ -220,6 +230,8 @@
                 error_trace: "Dispatch failed: " + dispatchErr.message,
                 queue_depth: taskQueue.length
             });
+            res = null;
+            task = null;
             setTimeout(function () {
                 isProcessingQueue = false;
                 processNextTask();

@@ -123,6 +123,7 @@ class IngestionAgent:
             cmd_wav = [
                 ffmpeg,
                 "-y",
+                "-loglevel", "error",
                 "-i", str(master_path),
                 "-vn",
                 "-acodec", "pcm_s16le",
@@ -138,6 +139,7 @@ class IngestionAgent:
             cmd_proxy = [
                 ffmpeg,
                 "-y",
+                "-loglevel", "error",
                 "-i", str(master_path),
                 "-vf", "scale=-2:480",
                 "-c:v", "libx264",

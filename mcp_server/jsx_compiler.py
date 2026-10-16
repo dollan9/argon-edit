@@ -39,12 +39,26 @@ class JSXCompiler:
         (r"\.forEach\(", "Array.forEach (use standard for loop)"),
     ]
 
+    @staticmethod
+    def _strip_literals_and_comments(code: str) -> str:
+        """Strip comments and regular single/double quoted strings to avoid false positives in syntax inspection."""
+        # Strip multi-line comments
+        stripped = re.sub(r"/\*[\s\S]*?\*/", "", code)
+        # Strip single-line comments
+        stripped = re.sub(r"//.*", "", stripped)
+        # Strip double-quoted strings (escape sequences respected)
+        stripped = re.sub(r'"(?:\\.|[^"\\])*"', '""', stripped)
+        # Strip single-quoted strings (escape sequences respected)
+        stripped = re.sub(r"'(?:\\.|[^'\\])*'", "''", stripped)
+        return stripped
+
     @classmethod
     def validate_es3(cls, jsx_code: str, raise_on_error: bool = True) -> List[str]:
         """Verify that JSX code is 100% compliant with Adobe ExtendScript ES3 engine."""
+        code_to_check = cls._strip_literals_and_comments(jsx_code)
         violations = []
         for pattern, reason in cls.FORBIDDEN_ES6_PATTERNS:
-            matches = list(re.finditer(pattern, jsx_code))
+            matches = list(re.finditer(pattern, code_to_check))
             if matches:
                 violations.append(f"Found {len(matches)} instance(s) of {reason}")
 
