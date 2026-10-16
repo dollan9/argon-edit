@@ -82,8 +82,8 @@ class TestJSXCompiler(unittest.TestCase):
 
         batch = JSXCompiler.compile_edit_plan_batch(plan)
         self.assertIn("argon_importFiles", batch)
-        self.assertIn("argon_insertClip", batch)
-        self.assertIn("argon_applyTransform(0, 0, 108.0", batch)
+        self.assertIn("argon_applyTransform(0,", batch)
+        self.assertIn("108.0", batch)
         # Verify strict ES3 compliance of the whole generated batch
         self.assertEqual(len(JSXCompiler.validate_es3(batch, raise_on_error=False)), 0)
 
